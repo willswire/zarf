@@ -421,6 +421,8 @@ func (i *ImageConfig) PullAll() ([]ImgInfo, error) {
 			return nil, err
 		}
 
+		// This is where we actually append the descriptor of the image.
+		// I need to do the same thing, expect for the image index
 		cranePath.AppendDescriptor(*desc)
 		if err != nil {
 			return nil, err
