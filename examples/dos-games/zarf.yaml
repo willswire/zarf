@@ -53,8 +53,8 @@ components:
 # Current issue is that if someone tries to pull an image which is sha'd by the image index
 # it cant be pushed back up because the pulled image doesn't have a digest of the index, it has a digest
 # of the platform it was pulled down to.
-# Even if in Zarf we do magic to replae the index sha with the platform sha
-# if someone tiries to use the index sha in their chart or manifests it will break.
+# Even if in Zarf we do magic to replace the index sha with the platform sha
+# if someone tries to use the index sha in their chart or manifests it will break.
 # When zarf publishes an image it isn't published at a certain tag it is published just at the sha
 # Most likely the solution is to save the index.json as it is and publish it exactly as it is
 # Still not 100% certain on all the interactions, but we can simply store another image index
