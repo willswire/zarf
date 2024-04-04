@@ -6,6 +6,7 @@ package images
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -22,6 +23,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/logs"
 	"github.com/google/go-containerregistry/pkg/name"
+	cranetypes "github.com/google/go-containerregistry/pkg/v1"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/cache"
 	"github.com/google/go-containerregistry/pkg/v1/daemon"
@@ -30,6 +32,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/partial"
 	"github.com/google/go-containerregistry/pkg/v1/stream"
 	"github.com/moby/moby/client"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 // ImgInfo wraps references/information about an image
@@ -41,11 +44,33 @@ type ImgInfo struct {
 	OldRef         transform.Image
 }
 
-// This function will be called in PullAll and will replace the i.imagelist with new images
-// Theortically, we might be able to skip putting the index sha in the zarf file, but we will see
-func getImagesFromIndexSha() ([]transform.Image, error) {
+func getImagesFromIndexSha(refInfo transform.Image) (map[string]transform.Image, error) {
+	// This can either be a manifest media type or a m
+	indexManifestJson, err := crane.Manifest(refInfo.Reference)
+	if err != nil {
+		return nil, err
+	}
 
-	return nil, nil
+	// Parse the manifest list
+	var idx cranetypes.IndexManifest
+	if err := json.Unmarshal([]byte(indexManifestJson), &idx); err != nil {
+		return nil, err
+	}
+
+	newImages := make(map[string]transform.Image)
+	if idx.MediaType != ocispec.MediaTypeImageIndex {
+		return newImages, nil
+	}
+
+	for _, manifest := range idx.Manifests {
+		newImage := fmt.Sprintf("%s@%s", refInfo.Name, manifest.Digest)
+		newImageRef, err := transform.ParseImageRef(newImage)
+		if err != nil {
+			return nil, err
+		}
+		newImages[newImage] = newImageRef
+	}
+	return newImages, nil
 }
 
 // PullAll pulls all of the images in the provided tag map.

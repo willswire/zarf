@@ -161,10 +161,12 @@ func (pc *PackageCreator) Assemble(dst *layout.PackagePaths, components []types.
 				return fmt.Errorf("failed to create ref for image %s: %w", src, err)
 			}
 
-			// We want to do two things here
+			// We want to do a few things here
 			// If any image is pinned to an index sha, we get all the images making up that index
 			// Once that is done the images should be both added for pull and added to the zarf.yaml
-			// The potential issue is that when we try to push, not all the images will be there
+			// Then we add the actual index itself (exact bytes or shas won't match) to the index.json
+			// At the moment I believe tags will no longer matter if something is an index.json as
+			// We won't have to
 
 			imageList = append(imageList, refInfo)
 		}

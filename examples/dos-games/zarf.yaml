@@ -14,10 +14,10 @@ components:
           - manifests/deployment.yaml
           - manifests/service.yaml
     images:
-      - defenseunicorns/zarf-game:multi-tile-dark@sha256:f78e442f0f3eb3e9459b5ae6b1a8fda62f8dfe818112e7d130a4e8ae72b3cbff
-      - defenseunicorns/zarf-game:multi-tile-dark@sha256:e4d27fe4b7bf6d5cb7ef02ed0d33ec0846796c09d6ed4bd94c8b946119a01b09
-      - defenseunicorns/zarf-game:multi-tile-dark@sha256:e81b1467b812019f8e8e81450728b084471806dc7e959b7beb9f39933c337e7d
-      # - defenseunicorns/zarf-game:multi-tile-dark@sha256:0b694ca1c33afae97b7471488e07968599f1d2470c629f76af67145ca64428af
+      # - defenseunicorns/zarf-game:multi-tile-dark@sha256:f78e442f0f3eb3e9459b5ae6b1a8fda62f8dfe818112e7d130a4e8ae72b3cbff
+      # - defenseunicorns/zarf-game:multi-tile-dark@sha256:e4d27fe4b7bf6d5cb7ef02ed0d33ec0846796c09d6ed4bd94c8b946119a01b09
+      # - defenseunicorns/zarf-game:multi-tile-dark@sha256:e81b1467b812019f8e8e81450728b084471806dc7e959b7beb9f39933c337e7d
+      - defenseunicorns/zarf-game:multi-tile-dark@sha256:0b694ca1c33afae97b7471488e07968599f1d2470c629f76af67145ca64428af
     actions:
       onDeploy:
         after:
@@ -48,7 +48,7 @@ components:
 
 # -u zarf-push -p ZdDotDMGkZWnFLhLZ69SiyDu
 # crane manifest 127.0.0.1:51815/defenseunicorns/zarf-game
-# crane index append -m 127.0.0.1:51815/defenseunicorns/zarf-game:multi-tile-dark@sha256:e81b1467b812019f8e8e81450728b084471806dc7e959b7beb9f39933c337e7d -m 127.0.0.1:51815/defenseunicorns/zarf-game:multi-tile-dark@sha256:e4d27fe4b7bf6d5cb7ef02ed0d33ec0846796c09d6ed4bd94c8b946119a01b09 -m 127.0.0.1:51815/defenseunicorns/zarf-game:multi-tile-dark@sha256:f78e442f0f3eb3e9459b5ae6b1a8fda62f8dfe818112e7d130a4e8ae72b3cbff -t 127.0.0.1:51815/defenseunicorns/zarf-game:multi-tile-dark
+# crane index append -m ghcr.io/austinabro321/zarf-game:multi-tile-dark@sha256:e81b1467b812019f8e8e81450728b084471806dc7e959b7beb9f39933c337e7d -m ghcr.io/austinabro321/zarf-game:multi-tile-dark@sha256:e4d27fe4b7bf6d5cb7ef02ed0d33ec0846796c09d6ed4bd94c8b946119a01b09 -m ghcr.io/austinabro321/zarf-game:multi-tile-dark@sha256:f78e442f0f3eb3e9459b5ae6b1a8fda62f8dfe818112e7d130a4e8ae72b3cbff -t ghcr.io/austinabro321/zarf-game:multi-tile-dark
 
 # Current issue is that if someone tries to pull an image which is sha'd by the image index
 # it cant be pushed back up because the pulled image doesn't have a digest of the index, it has a digest
@@ -57,6 +57,9 @@ components:
 # if someone tiries to use the index sha in their chart or manifests it will break.
 # When zarf publishes an image it isn't published at a certain tag it is published just at the sha
 # Most likely the solution is to save the index.json as it is and publish it exactly as it is
+# Still not 100% certain on all the interactions, but we can simply store another image index
+# We may just have to add a simple media type check or maybe there is magic in the tools we use to pull everything
+# ^ most likely though given an index, a tool would only pull down the relevant image for a platform
 
 # It is possible to tag each of the images, but the digest at that tag just becomes the latest tagged image
 # As it turns out you can build an index with crane, but the index does not end up the same
