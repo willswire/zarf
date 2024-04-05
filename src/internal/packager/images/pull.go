@@ -33,6 +33,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/stream"
 	cranetypes "github.com/google/go-containerregistry/pkg/v1/types"
 	"github.com/moby/moby/client"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 // ImgInfo wraps references/information about an image
@@ -40,8 +41,6 @@ type ImgInfo struct {
 	RefInfo        transform.Image
 	Img            v1.Image
 	HasImageLayers bool
-	HasIndexSha    bool
-	OldRef         transform.Image
 }
 
 func getManifest(refInfo transform.Image) (v1.IndexManifest, error) {
@@ -85,6 +84,8 @@ func PullIndexes(refInfos []transform.Image, imageBaseDir string) ([]string, err
 		}
 		digestSplit := strings.Split(refInfo.Digest, ":")
 		digest := v1.Hash{Algorithm: digestSplit[0], Hex: digestSplit[1]}
+		annotations := make(map[string]string)
+		annotations[ocispec.AnnotationBaseImageName] = fmt.Sprintf("%s:%s", refInfo.Name, refInfo.Tag)
 		indexDesc := v1.Descriptor{
 			Size:      int64(len(indexManifestJson)),
 			Digest:    digest,
@@ -169,7 +170,6 @@ func (i *ImageConfig) PullAll() ([]ImgInfo, error) {
 	// Spawn a goroutine for each image to load its metadata
 	for _, refInfo := range i.ImageList {
 		// Create a closure so that we can pass the src into the goroutine
-		oldRef := refInfo
 		refInfo := refInfo
 		go func() {
 
@@ -194,25 +194,11 @@ func (i *ImageConfig) PullAll() ([]ImgInfo, error) {
 				return
 			}
 
-			// I could check right here if the image.digest is equal to the refinfo.digest if it exists
-			// If it doesn't that's when we have a transform function to reset it and set hasIndexSha
-			digest, _ := img.Digest()
-			hasIndexSha := false
-			if refInfo.Digest != "" && refInfo.Digest != digest.String() {
-				refInfo.Reference = strings.Replace(refInfo.Reference, refInfo.Digest, digest.String(), 1)
-				if refInfo.TagOrDigest == refInfo.Digest {
-					refInfo.TagOrDigest = digest.String()
-				}
-				refInfo.Digest = digest.String()
-				hasIndexSha = true
-			}
-
 			if metadataImageConcurrency.IsDone() {
 				return
 			}
 
-			metadataImageConcurrency.ProgressChan <- ImgInfo{RefInfo: refInfo, Img: img,
-				HasImageLayers: hasImageLayers, HasIndexSha: hasIndexSha, OldRef: oldRef}
+			metadataImageConcurrency.ProgressChan <- ImgInfo{RefInfo: refInfo, Img: img, HasImageLayers: hasImageLayers}
 		}()
 	}
 
