@@ -6,13 +6,12 @@ components:
   - name: baseline
     required: true
     images:
-      - docker.io/defenseunicorns/zarf-game:multi-tile-dark@sha256:0b694ca1c33afae97b7471488e07968599f1d2470c629f76af67145ca64428af
-
+      # - docker.io/defenseunicorns/zarf-game:multi-tile-dark@sha256:0b694ca1c33afae97b7471488e07968599f1d2470c629f76af67145ca64428af
+      - ghcr.io/defenseunicorns/zarf/agent:v0.32.6@sha256:05a82656df5466ce17c3e364c16792ae21ce68438bfe06eeab309d0520c16b48
 #
 # Initial two tests to get working
 # On create I can pull every image in and write to the zarf.yaml so that there is record of them
 # On deploy I can both deploy every image to the internal registry and deploy
-
 
 # Name:      docker.io/defenseunicorns/zarf-game:multi-tile-dark
 # MediaType: application/vnd.docker.distribution.manifest.list.v2+json

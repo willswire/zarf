@@ -51,3 +51,21 @@ Simply changing the annotation `"org.opencontainers.image.base.name"` to correct
 In order for a user to be able to use the image index sha we have to recreate the image index in the internal registry. This means Zarf will have to pull and push every image in the image index pointed to by the sha the user is bringing in to the zarf package and then the Zarf internal registry. Even when all the images are there the index sha will not work as the index still does not exist. Using an index we create ourselves will not be an adequate solution. While we can create an image index that is an equivalent json, we don't know the order of the keys or the whitespace that is in the index in the remote registry. We will have to pull that index down, store it in the zarf package, and push it up so the bytes are exactly the same.
 
 This may bloat Zarf packages. Some image indexes, for example, nginx:latest have as many as 16 distinct platforms. A user of Zarf may be surprised if they think they are importing a single image, but in reality import 16 different images. We would have to warn around this. One advantage to pulling in multiple platforms is that we get multi arch clusters. This would provide an easy way to bring in both an arm and amd architecture for example.
+
+Proposed solution is following
+- on create
+  - check if an image is an index sha
+    - if it is, pull down every image pointed to by the sha
+    - pull down the image index at the sha as well
+    - modify the zarf.yaml to include the new images
+- on deploy
+  - first deploy all images as we have been doing
+  - deploy any other image index in the images/index.json
+
+
+Current questions
+- Where do we store the image index, in the images folder? That will be the initial attempt
+- What is the source of truth for images on deploy. Images in the zarf.yaml or images in the index.json
+- Some images have platforms like unknown/unknown. What does that mean, why are they there
+  - Those are [image attestations](https://docs.docker.com/build/attestations/attestation-storage) we'll have to see if we have to bring those over too or if we can create an image manifest without actually having everything it should point to
+- Do I have to use the API to send it or can I use crane.copy() If I use crane.copy I have to have a local registry though I think, which means I probably can't

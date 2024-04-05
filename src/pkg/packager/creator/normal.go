@@ -121,11 +121,12 @@ func (pc *PackageCreator) LoadPackageDefinition(dst *layout.PackagePaths) (pkg t
 // Assemble assembles all of the package assets into Zarf's tmp directory layout.
 func (pc *PackageCreator) Assemble(dst *layout.PackagePaths, components []types.ZarfComponent, arch string) error {
 	var imageList []transform.Image
+	var indexList []transform.Image
 
 	skipSBOMFlagUsed := pc.createOpts.SkipSBOM
 	componentSBOMs := map[string]*layout.ComponentSBOM{}
 
-	for _, component := range components {
+	for i, component := range components {
 		onCreate := component.Actions.OnCreate
 
 		onFailure := func() {
@@ -155,7 +156,7 @@ func (pc *PackageCreator) Assemble(dst *layout.PackagePaths, components []types.
 		}
 
 		// Combine all component images into a single entry for efficient layer reuse.
-		for _, src := range component.Images {
+		for j, src := range component.Images {
 			refInfo, err := transform.ParseImageRef(src)
 			if err != nil {
 				return fmt.Errorf("failed to create ref for image %s: %w", src, err)
@@ -167,8 +168,25 @@ func (pc *PackageCreator) Assemble(dst *layout.PackagePaths, components []types.
 			// Then we add the actual index itself (exact bytes or shas won't match) to the index.json
 			// At the moment I believe tags will no longer matter if something is an index.json as
 			// We won't have to
+			newImages, err := images.GetImagesFromIndexSha(refInfo)
+			if err != nil {
+				return fmt.Errorf("failed to get all images referenced from index sha for %s: %w", src, err)
+			}
 
-			imageList = append(imageList, refInfo)
+			if len(newImages) > 0 {
+				indexList = append(indexList, refInfo)
+				// Delete index image from zarf.yaml
+				components[i].Images = append(components[i].Images[:j], components[i].Images[j+1:]...)
+			} else {
+				imageList = append(imageList, refInfo)
+			}
+
+			// TODO check for things that aren't actually images. Is there a way I can tell?
+			for imageName, refInfo := range newImages {
+				components[i].Images = append(components[i].Images, imageName)
+				imageList = append(imageList, refInfo)
+			}
+
 		}
 	}
 
@@ -206,30 +224,42 @@ func (pc *PackageCreator) Assemble(dst *layout.PackagePaths, components []types.
 				return err
 			}
 			// I need to add some additional logic here that says
-			// When an image is the same as a refinfo (this should be the original but I might change that)
+			// When an image is the same as a ref info (this should be the original but I might change that)
 			// and the sha of the img.digest does not match the sha on the reference
 			// Then we need to go through the components and change it to
 
 			// Alternatively, and this is probably simpler I could just add a variable called hasIndexSha
 			// In that case we mutate the image in the component
-			if imgInfo.HasIndexSha {
-				for i, component := range components {
-					for j, image := range component.Images {
-						refInfo, err := transform.ParseImageRef(image)
-						if err != nil {
-							return fmt.Errorf("failed to create ref for image %s: %w", image, err)
-						}
-						if refInfo == imgInfo.OldRef {
-							components[i].Images[j] = strings.Replace(image, refInfo.Digest, imgInfo.RefInfo.Digest, 1)
-						}
-					}
-				}
-			}
+			// if imgInfo.HasIndexSha {
+			// 	for i, component := range components {
+			// 		for j, image := range component.Images {
+			// 			refInfo, err := transform.ParseImageRef(image)
+			// 			if err != nil {
+			// 				return fmt.Errorf("failed to create ref for image %s: %w", image, err)
+			// 			}
+			// 			if refInfo == imgInfo.OldRef {
+			// 				components[i].Images[j] = strings.Replace(image, refInfo.Digest, imgInfo.RefInfo.Digest, 1)
+			// 			}
+			// 		}
+			// 	}
+			// }
 
 			if imgInfo.HasImageLayers {
 				sbomImageList = append(sbomImageList, imgInfo.RefInfo)
 			}
 		}
+	}
+
+	if len(indexList) > 0 {
+
+		digests, err := images.PullIndexes(indexList, dst.Images.Base)
+		if err != nil {
+			return err
+		}
+		for _, digest := range digests {
+			dst.Images.AddBlob(digest)
+		}
+
 	}
 
 	// Ignore SBOM creation if the flag is set.

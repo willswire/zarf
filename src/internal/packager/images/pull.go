@@ -5,6 +5,7 @@
 package images
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -23,7 +24,6 @@ import (
 	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/logs"
 	"github.com/google/go-containerregistry/pkg/name"
-	cranetypes "github.com/google/go-containerregistry/pkg/v1"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/cache"
 	"github.com/google/go-containerregistry/pkg/v1/daemon"
@@ -31,8 +31,8 @@ import (
 	clayout "github.com/google/go-containerregistry/pkg/v1/layout"
 	"github.com/google/go-containerregistry/pkg/v1/partial"
 	"github.com/google/go-containerregistry/pkg/v1/stream"
+	cranetypes "github.com/google/go-containerregistry/pkg/v1/types"
 	"github.com/moby/moby/client"
-	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 // ImgInfo wraps references/information about an image
@@ -44,26 +44,85 @@ type ImgInfo struct {
 	OldRef         transform.Image
 }
 
-func getImagesFromIndexSha(refInfo transform.Image) (map[string]transform.Image, error) {
-	// This can either be a manifest media type or a m
+func getManifest(refInfo transform.Image) (v1.IndexManifest, error) {
+	indexManifestJson, err := crane.Manifest(refInfo.Reference)
+	if err != nil {
+		return v1.IndexManifest{}, err
+	}
+
+	// Parse the manifest list
+	var idx v1.IndexManifest
+	if err := json.Unmarshal(indexManifestJson, &idx); err != nil {
+		return v1.IndexManifest{}, err
+	}
+	return idx, err
+}
+
+// TODO
+// make work with registry override
+func PullIndexes(refInfos []transform.Image, imageBaseDir string) ([]string, error) {
+	//TODO de-dup
+	cranePath, err := clayout.FromPath(imageBaseDir)
+	// Use crane pattern for creating OCI layout if it doesn't exist
+	if err != nil {
+		// If it doesn't exist create it
+		cranePath, err = clayout.Write(imageBaseDir, empty.Index)
+		if err != nil {
+			return nil, err
+		}
+	}
+	var digests []string
+	for _, refInfo := range refInfos {
+		indexManifestJson, err := crane.Manifest(refInfo.Reference)
+		if err != nil {
+			return nil, err
+		}
+
+		// Parse the manifest list
+		var idx v1.IndexManifest
+		if err := json.Unmarshal(indexManifestJson, &idx); err != nil {
+			return nil, err
+		}
+		digestSplit := strings.Split(refInfo.Digest, ":")
+		digest := v1.Hash{Algorithm: digestSplit[0], Hex: digestSplit[1]}
+		indexDesc := v1.Descriptor{
+			Size:      int64(len(indexManifestJson)),
+			Digest:    digest,
+			MediaType: idx.MediaType,
+		}
+
+		// TODO what is nopcloser and what are the other types of closers
+		cranePath.WriteBlob(digest, io.NopCloser(bytes.NewReader(indexManifestJson)))
+		cranePath.AppendDescriptor(indexDesc)
+		digests = append(digests, digest.Hex)
+
+	}
+	return digests, nil
+}
+
+func GetImagesFromIndexSha(refInfo transform.Image) (map[string]transform.Image, error) {
+	newImages := make(map[string]transform.Image)
+	if refInfo.Digest == "" {
+		return newImages, nil
+	}
+
 	indexManifestJson, err := crane.Manifest(refInfo.Reference)
 	if err != nil {
 		return nil, err
 	}
 
 	// Parse the manifest list
-	var idx cranetypes.IndexManifest
-	if err := json.Unmarshal([]byte(indexManifestJson), &idx); err != nil {
+	var idx v1.IndexManifest
+	if err := json.Unmarshal(indexManifestJson, &idx); err != nil {
 		return nil, err
 	}
 
-	newImages := make(map[string]transform.Image)
-	if idx.MediaType != ocispec.MediaTypeImageIndex {
+	if idx.MediaType != cranetypes.OCIImageIndex && idx.MediaType != cranetypes.DockerManifestList {
 		return newImages, nil
 	}
 
 	for _, manifest := range idx.Manifests {
-		newImage := fmt.Sprintf("%s@%s", refInfo.Name, manifest.Digest)
+		newImage := fmt.Sprintf("%s:%s@%s", refInfo.Name, refInfo.Tag, manifest.Digest)
 		newImageRef, err := transform.ParseImageRef(newImage)
 		if err != nil {
 			return nil, err
