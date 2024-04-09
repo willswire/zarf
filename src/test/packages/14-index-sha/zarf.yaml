@@ -5,9 +5,23 @@ metadata:
 components:
   - name: baseline
     required: true
+    manifests:
+      - name: multi-games
+        namespace: dos-games
+        files:
+          - manifests/deployment.yaml
+          - manifests/service.yaml
     images:
-      # - docker.io/defenseunicorns/zarf-game:multi-tile-dark@sha256:0b694ca1c33afae97b7471488e07968599f1d2470c629f76af67145ca64428af
-      - ghcr.io/defenseunicorns/zarf/agent:v0.32.6@sha256:05a82656df5466ce17c3e364c16792ae21ce68438bfe06eeab309d0520c16b48
+      - defenseunicorns/zarf-game:multi-tile-dark@sha256:0b694ca1c33afae97b7471488e07968599f1d2470c629f76af67145ca64428af
+    actions:
+      onDeploy:
+        after:
+          - wait:
+              cluster:
+                kind: deployment
+                name: game
+                namespace: dos-games
+                condition: available
 #
 # Initial two tests to get working
 # On create I can pull every image in and write to the zarf.yaml so that there is record of them

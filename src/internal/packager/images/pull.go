@@ -87,9 +87,10 @@ func PullIndexes(refInfos []transform.Image, imageBaseDir string) ([]string, err
 		annotations := make(map[string]string)
 		annotations[ocispec.AnnotationBaseImageName] = fmt.Sprintf("%s:%s", refInfo.Name, refInfo.Tag)
 		indexDesc := v1.Descriptor{
-			Size:      int64(len(indexManifestJson)),
-			Digest:    digest,
-			MediaType: idx.MediaType,
+			Size:        int64(len(indexManifestJson)),
+			Digest:      digest,
+			MediaType:   idx.MediaType,
+			Annotations: annotations,
 		}
 
 		// TODO what is nopcloser and what are the other types of closers
@@ -99,6 +100,10 @@ func PullIndexes(refInfos []transform.Image, imageBaseDir string) ([]string, err
 
 	}
 	return digests, nil
+}
+
+func IsImageIndex(mediaType cranetypes.MediaType) bool {
+	return (mediaType == cranetypes.OCIImageIndex || mediaType == cranetypes.DockerManifestList)
 }
 
 func GetImagesFromIndexSha(refInfo transform.Image) (map[string]transform.Image, error) {
@@ -118,7 +123,7 @@ func GetImagesFromIndexSha(refInfo transform.Image) (map[string]transform.Image,
 		return nil, err
 	}
 
-	if idx.MediaType != cranetypes.OCIImageIndex && idx.MediaType != cranetypes.DockerManifestList {
+	if !IsImageIndex(idx.MediaType) {
 		return newImages, nil
 	}
 

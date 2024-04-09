@@ -17,6 +17,26 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
+// // LoadNestedOCIIndex returns a byte array representation of
+// func LoadNestedOCIIndex(imgPath string, refInfo transform.Image) ([]byte, error) {
+// 	layoutPath := layout.Path(imgPath)
+// 	imgIdx, err := layoutPath.ImageIndex()
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	idxManifest, err := imgIdx.IndexManifest()
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	for _, manifest := range idxManifest.Manifests {
+// 		if images.IsImageIndex(manifest.MediaType) &&
+// 			manifest.Annotations[ocispec.AnnotationBaseImageName] == refInfo.Reference {
+// 			//return layoutPath.Blob()
+// 		}
+// 	}
+// 	return nil, fmt.Errorf("unable to find image (%s) at the path (%s)", refInfo.Reference, imgPath)
+// }
+
 // LoadOCIImage returns a v1.Image with the image ref specified from a location provided, or an error if the image cannot be found.
 func LoadOCIImage(imgPath string, refInfo transform.Image) (v1.Image, error) {
 	// Use the manifest within the index.json to load the specific image we want
