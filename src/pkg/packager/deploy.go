@@ -282,9 +282,12 @@ func (p *Packager) deployInitComponent(ctx context.Context, component v1alpha1.Z
 
 	// Do cleanup for when we inject the seed registry during initialization
 	if isSeedRegistry {
-		if err := p.cluster.StopInjection(ctx); err != nil {
-			return nil, fmt.Errorf("unable to seed the Zarf Registry: %w", err)
-		}
+		go func() {
+			if err := p.cluster.StopInjection(ctx); err != nil {
+				message.WarnErr(err, "failed to stop injection")
+				logger.From(ctx).Error("failed to stop injection", "error", err)
+			}
+		}()
 	}
 
 	return charts, nil
@@ -766,7 +769,7 @@ func (p *Packager) installChartAndManifests(ctx context.Context, componentPaths 
 		connectStrings, installedChartName, err := helmCfg.InstallOrUpgradeChart(ctx)
 		if err != nil {
 			return nil, err
-	}
+		}
 		installedCharts = append(installedCharts, types.InstalledChart{Namespace: manifest.Namespace, ChartName: installedChartName, ConnectStrings: connectStrings})
 	}
 
