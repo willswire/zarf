@@ -22,6 +22,7 @@ import (
 	"github.com/zarf-dev/zarf/src/cmd/common"
 	"github.com/zarf-dev/zarf/src/config"
 	"github.com/zarf-dev/zarf/src/config/lang"
+	"github.com/zarf-dev/zarf/src/internal/packager2"
 	"github.com/zarf-dev/zarf/src/pkg/lint"
 	"github.com/zarf-dev/zarf/src/pkg/logger"
 	"github.com/zarf-dev/zarf/src/pkg/message"
@@ -242,34 +243,31 @@ var devFindImagesCmd = &cobra.Command{
 	Short:   lang.CmdDevFindImagesShort,
 	Long:    lang.CmdDevFindImagesLong,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		pkgConfig.CreateOpts.BaseDir = setBaseDirectory(args)
-
 		v := common.GetViper()
 
-		pkgConfig.CreateOpts.SetVariables = helpers.TransformAndMergeMap(
-			v.GetStringMapString(common.VPkgCreateSet), pkgConfig.CreateOpts.SetVariables, strings.ToUpper)
-		pkgConfig.PkgOpts.SetVariables = helpers.TransformAndMergeMap(
-			v.GetStringMapString(common.VPkgDeploySet), pkgConfig.PkgOpts.SetVariables, strings.ToUpper)
-		pkgClient, err := packager.New(&pkgConfig)
+		opts := packager2.FindImagesOptions{
+			CreateSetVariables:  helpers.TransformAndMergeMap(v.GetStringMapString(common.VPkgCreateSet), pkgConfig.CreateOpts.SetVariables, strings.ToUpper),
+			DeploySetVariables:  helpers.TransformAndMergeMap(v.GetStringMapString(common.VPkgDeploySet), pkgConfig.PkgOpts.SetVariables, strings.ToUpper),
+			RepoHelmChartPath:   pkgConfig.FindImagesOpts.RepoHelmChartPath,
+			RegistryURL:         pkgConfig.FindImagesOpts.RegistryURL,
+			KubeVersionOverride: pkgConfig.FindImagesOpts.KubeVersionOverride,
+			SkipCosign:          pkgConfig.FindImagesOpts.SkipCosign,
+			Flavor:              pkgConfig.CreateOpts.Flavor,
+		}
+		foundImages, err := packager2.FindImages(cmd.Context(), args[0], opts)
 		if err != nil {
 			return err
 		}
-		defer pkgClient.ClearTempPaths()
 
-		_, err = pkgClient.FindImages(cmd.Context())
-
-		var lintErr *lint.LintError
-		if errors.As(err, &lintErr) {
-			// HACK(mkcp): Re-initializing PTerm with a stderr writer isn't great, but it lets us render these lint
-			// tables below for backwards compatibility
-			if logger.Enabled(cmd.Context()) {
-				message.InitializePTerm(logger.DestinationDefault)
+		fmt.Println("components:")
+		for k, imgs := range foundImages {
+			fmt.Printf("  - name: %s\n", k)
+			fmt.Println("    images:")
+			for _, img := range imgs {
+				fmt.Printf("      - %s\n", img)
 			}
-			common.PrintFindings(lintErr)
 		}
-		if err != nil {
-			return fmt.Errorf("unable to find images: %w", err)
-		}
+
 		return nil
 	},
 }
@@ -347,9 +345,9 @@ func init() {
 	devSha256SumCmd.Flags().StringVarP(&extractPath, "extract-path", "e", "", lang.CmdDevFlagExtractPath)
 
 	devFindImagesCmd.Flags().StringVarP(&pkgConfig.FindImagesOpts.RepoHelmChartPath, "repo-chart-path", "p", "", lang.CmdDevFlagRepoChartPath)
+
 	// use the package create config for this and reset it here to avoid overwriting the config.CreateOptions.SetVariables
 	devFindImagesCmd.Flags().StringToStringVar(&pkgConfig.CreateOpts.SetVariables, "set", v.GetStringMapString(common.VPkgCreateSet), lang.CmdDevFlagSet)
-
 	err := devFindImagesCmd.Flags().MarkDeprecated("set", "this field is replaced by create-set")
 	if err != nil {
 		message.Debug("Unable to mark dev-find-images flag as set", "error", err)
@@ -358,9 +356,10 @@ func init() {
 	if err != nil {
 		message.Debug("Unable to mark dev-find-images flag as hidden", "error", err)
 	}
-	devFindImagesCmd.Flags().StringVarP(&pkgConfig.CreateOpts.Flavor, "flavor", "f", v.GetString(common.VPkgCreateFlavor), lang.CmdPackageCreateFlagFlavor)
 	devFindImagesCmd.Flags().StringToStringVar(&pkgConfig.CreateOpts.SetVariables, "create-set", v.GetStringMapString(common.VPkgCreateSet), lang.CmdDevFlagSet)
 	devFindImagesCmd.Flags().StringToStringVar(&pkgConfig.PkgOpts.SetVariables, "deploy-set", v.GetStringMapString(common.VPkgDeploySet), lang.CmdPackageDeployFlagSet)
+
+	devFindImagesCmd.Flags().StringVarP(&pkgConfig.CreateOpts.Flavor, "flavor", "f", v.GetString(common.VPkgCreateFlavor), lang.CmdPackageCreateFlagFlavor)
 	// allow for the override of the default helm KubeVersion
 	devFindImagesCmd.Flags().StringVar(&pkgConfig.FindImagesOpts.KubeVersionOverride, "kube-version", "", lang.CmdDevFlagKubeVersion)
 	// check which manifests are using this particular image

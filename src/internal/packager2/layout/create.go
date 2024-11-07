@@ -46,50 +46,50 @@ type CreateOptions struct {
 }
 
 // CreateSkeleton creates a skeleton package and returns the path to the created package.
-func CreateSkeleton(ctx context.Context, packagePath string, opt CreateOptions) (string, error) {
+func CreateSkeleton(ctx context.Context, packagePath string, opt CreateOptions) (*PackageLayout, error) {
 	b, err := os.ReadFile(filepath.Join(packagePath, ZarfYAML))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	var pkg v1alpha1.ZarfPackage
 	err = goyaml.Unmarshal(b, &pkg)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	buildPath, err := utils.MakeTempDir(config.CommonOptions.TempDirectory)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	pkg.Metadata.Architecture = config.GetArch()
 
 	pkg, err = resolveImports(ctx, pkg, packagePath, pkg.Metadata.Architecture, opt.Flavor)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	pkg.Metadata.Architecture = zoci.SkeletonArch
 
 	err = validate(pkg, packagePath, opt.SetVariables)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	for _, component := range pkg.Components {
 		err := assembleComponent(component, packagePath, buildPath)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 	}
 
 	checksumContent, checksumSha, err := getChecksum(buildPath)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	checksumPath := filepath.Join(buildPath, Checksums)
 	err = os.WriteFile(checksumPath, []byte(checksumContent), helpers.ReadWriteUser)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	pkg.Metadata.AggregateChecksum = checksumSha
 
@@ -97,19 +97,23 @@ func CreateSkeleton(ctx context.Context, packagePath string, opt CreateOptions) 
 
 	b, err = goyaml.Marshal(pkg)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	err = os.WriteFile(filepath.Join(buildPath, ZarfYAML), b, helpers.ReadWriteUser)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	err = signPackage(buildPath, opt.SigningKeyPath, opt.SigningKeyPassword)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return buildPath, nil
+	pkgLayout, err := LoadFromDir(ctx, buildPath, PackageLayoutOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return pkgLayout, nil
 }
 
 func validate(pkg v1alpha1.ZarfPackage, packagePath string, setVariables map[string]string) error {
