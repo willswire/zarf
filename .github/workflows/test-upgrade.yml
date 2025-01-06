@@ -1,5 +1,7 @@
 name: Test Upgrade
 on:
+  schedule:
+   - cron: '0 7 * * *' ## Every day at 0700 UTC
   pull_request:
     paths-ignore:
       - "**.md"
