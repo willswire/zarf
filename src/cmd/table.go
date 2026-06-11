@@ -24,6 +24,8 @@ func PrintFindings(ctx context.Context, lintErr *lint.LintError) {
 			sevColor = color.FgRed
 		case lint.SevWarn:
 			sevColor = color.FgYellow
+		case lint.SevInfo:
+			sevColor = color.FgBlue
 		}
 
 		lintData = append(lintData, []string{

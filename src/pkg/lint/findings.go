@@ -35,6 +35,7 @@ type Severity string
 const (
 	SevErr  = "Error"
 	SevWarn = "Warning"
+	SevInfo = "Info"
 )
 
 // PackageFinding is a struct that contains a finding about something wrong with a package
